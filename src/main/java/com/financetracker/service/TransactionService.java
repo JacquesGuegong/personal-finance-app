@@ -3,6 +3,7 @@ package com.financetracker.service;
 import com.financetracker.entity.Account;
 import com.financetracker.entity.Transaction;
 import com.financetracker.entity.TransactionType;
+import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.exception.UnauthorizedException;
 import com.financetracker.repository.AccountRepository;
 import com.financetracker.repository.TransactionRepository;
@@ -52,5 +53,29 @@ public class TransactionService {
 
     public List<Transaction> getByCategory(UUID userId, String category) {
         return transactionRepository.findByAccount_User_IdAndCategory(userId, category);
+    }
+
+    public Transaction findById(UUID transactionId, UUID userId) {
+        return transactionRepository.findByIdAndAccount_User_Id(transactionId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+    }
+
+    @Transactional
+    public Transaction update(UUID transactionId, UUID userId, BigDecimal amount,
+                               TransactionType type, String category,
+                               String description, LocalDate date) {
+        Transaction transaction = findById(transactionId, userId);
+        transaction.setAmount(amount);
+        transaction.setType(type);
+        transaction.setCategory(category);
+        transaction.setDescription(description);
+        transaction.setDate(date);
+        return transactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public void delete(UUID transactionId, UUID userId) {
+        Transaction transaction = findById(transactionId, userId);
+        transactionRepository.delete(transaction);
     }
 }

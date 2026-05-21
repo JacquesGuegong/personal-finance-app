@@ -38,6 +38,10 @@ public class BudgetService {
         return budgetRepository.save(budget);
     }
 
+    public java.util.List<Budget> getByMonth(UUID userId, int month, int year) {
+        return budgetRepository.findByUser_IdAndMonthAndYear(userId, month, year);
+    }
+
     public BudgetStatus getBudgetStatus(UUID userId, String category, int month, int year) {
         Budget budget = budgetRepository
                 .findByUser_IdAndCategoryAndMonthAndYear(userId, category, month, year)

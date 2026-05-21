@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
@@ -20,6 +21,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             UUID userId, LocalDate start, LocalDate end);
 
     List<Transaction> findByAccount_User_IdAndCategory(UUID userId, String category);
+
+    Optional<Transaction> findByIdAndAccount_User_Id(UUID transactionId, UUID userId);
 
     // YEAR() and MONTH() are Hibernate 6 HQL functions — available in Spring Boot 3.
     // Sums all transaction amounts for a given user, type, and calendar month.

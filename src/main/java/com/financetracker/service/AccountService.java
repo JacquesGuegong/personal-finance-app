@@ -41,7 +41,25 @@ public class AccountService {
     }
 
     public BigDecimal calculateNetWorth(UUID userId) {
-        // Delegates the SUM to the DB — avoids loading every account row into memory
         return accountRepository.sumBalanceByUserId(userId);
+    }
+
+    public Account findById(UUID accountId, UUID userId) {
+        return accountRepository.findByIdAndUser_Id(accountId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountId));
+    }
+
+    @Transactional
+    public Account update(UUID accountId, UUID userId, String name, AccountType type) {
+        Account account = findById(accountId, userId);
+        account.setName(name);
+        account.setType(type);
+        return accountRepository.save(account);
+    }
+
+    @Transactional
+    public void delete(UUID accountId, UUID userId) {
+        Account account = findById(accountId, userId);
+        accountRepository.delete(account);
     }
 }

@@ -2,6 +2,7 @@ package com.financetracker.service;
 
 import com.financetracker.entity.User;
 import com.financetracker.exception.ResourceNotFoundException;
+import com.financetracker.exception.UnauthorizedException;
 import com.financetracker.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,9 +34,18 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    // Read-only — no @Transactional needed; JPA repositories handle their own transactions
     public User findByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+    }
+
+    // Always say "Invalid credentials" for both wrong email AND wrong password —
+    // never distinguish between them so callers can't enumerate valid emails.
+    public User authenticate(String email, String rawPassword) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+        return user;
     }
 }
