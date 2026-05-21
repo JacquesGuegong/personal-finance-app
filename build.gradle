@@ -41,6 +41,13 @@ dependencies {
     // Brings in Hibernate Validator for @NotNull, @Size, @Email, etc.
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // ── JWT ───────────────────────────────────────────────────────────────────
+    // jjwt-api = the interfaces you compile against.
+    // jjwt-impl + jjwt-jackson = the runtime implementations (not needed at compile time).
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
     // ── Database ──────────────────────────────────────────────────────────────
     // JDBC driver so the app can actually talk to PostgreSQL.
     runtimeOnly 'org.postgresql:postgresql'
