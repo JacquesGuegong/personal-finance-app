@@ -2,6 +2,7 @@ package com.financetracker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Entry point for the Finance Tracker application.
@@ -22,6 +23,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *   - Registers all your beans and wires them together
  */
 @SpringBootApplication
+@EnableScheduling
 public class FinanceTrackerApplication {
 
     public static void main(String[] args) {

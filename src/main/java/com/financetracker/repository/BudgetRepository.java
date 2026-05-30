@@ -14,4 +14,7 @@ public interface BudgetRepository extends JpaRepository<Budget, UUID> {
     // Single budget for ownership checks and status calculation.
     Optional<Budget> findByUser_IdAndCategoryAndMonthAndYear(
             UUID userId, String category, int month, int year);
+
+    // Used by the scheduled job to scan ALL users' budgets for a given month
+    List<Budget> findByMonthAndYear(int month, int year);
 }
