@@ -71,6 +71,15 @@ dependencies {
     // Includes JUnit 5, Mockito, AssertJ, and MockMvc — everything you need.
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+
+    // H2 is an in-memory database. Tests spin it up, run against it, and throw it
+    // away — fast and isolated, so tests never touch your real PostgreSQL data.
+    // testRuntimeOnly = only on the test classpath, never shipped in production.
+    testRuntimeOnly 'com.h2database:h2'
+
+    // Gradle 9 needs the JUnit Platform launcher on the test runtime classpath
+    // to actually start the test engine. Without it: "Failed to load JUnit Platform".
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
