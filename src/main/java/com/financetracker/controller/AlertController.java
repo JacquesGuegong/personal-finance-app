@@ -1,6 +1,8 @@
 package com.financetracker.controller;
 
 import com.financetracker.dto.AlertResponse;
+import com.financetracker.entity.AlertType;
+import com.financetracker.entity.Budget;
 import com.financetracker.entity.BudgetAlert;
 import com.financetracker.service.BudgetAlertService;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +22,19 @@ public class AlertController {
         this.budgetAlertService = budgetAlertService;
     }
 
+    // GET /api/alerts                 → unread alerts (any type)
+    // GET /api/alerts?type=ANOMALY    → all alerts of that type
     @GetMapping
-    public ResponseEntity<List<AlertResponse>> getUnread(Principal principal) {
-        List<AlertResponse> alerts = budgetAlertService
-                .getUnreadAlerts(userId(principal))
-                .stream()
-                .map(this::toResponse)
-                .toList();
-        return ResponseEntity.ok(alerts);
+    public ResponseEntity<List<AlertResponse>> getAlerts(
+            @RequestParam(required = false) AlertType type,
+            Principal principal) {
+
+        UUID userId = userId(principal);
+        List<BudgetAlert> alerts = (type != null)
+                ? budgetAlertService.getAlertsByType(userId, type)
+                : budgetAlertService.getUnreadAlerts(userId);
+
+        return ResponseEntity.ok(alerts.stream().map(this::toResponse).toList());
     }
 
     // PUT not POST — we are updating the state of an existing resource, not creating one
@@ -44,10 +51,12 @@ public class AlertController {
     }
 
     private AlertResponse toResponse(BudgetAlert a) {
+        // ANOMALY alerts are not tied to a budget, so budget may be null.
+        Budget budget = a.getBudget();
         return new AlertResponse(
                 a.getId(),
-                a.getBudget().getId(),
-                a.getBudget().getCategory(),
+                budget != null ? budget.getId() : null,
+                budget != null ? budget.getCategory() : null,
                 a.getMessage(),
                 a.getAlertType(),
                 a.isRead(),

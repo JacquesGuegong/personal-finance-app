@@ -3,9 +3,11 @@ package com.financetracker.service;
 import com.financetracker.entity.AlertType;
 import com.financetracker.entity.Budget;
 import com.financetracker.entity.BudgetAlert;
+import com.financetracker.entity.User;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.BudgetAlertRepository;
 import com.financetracker.repository.BudgetRepository;
+import com.financetracker.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,11 +28,14 @@ public class BudgetAlertService {
 
     private final BudgetAlertRepository alertRepository;
     private final BudgetRepository budgetRepository;
+    private final UserRepository userRepository;
 
     public BudgetAlertService(BudgetAlertRepository alertRepository,
-                               BudgetRepository budgetRepository) {
+                               BudgetRepository budgetRepository,
+                               UserRepository userRepository) {
         this.alertRepository = alertRepository;
         this.budgetRepository = budgetRepository;
+        this.userRepository = userRepository;
     }
 
     // Called by the scheduled job. @Transactional keeps the Hibernate session
@@ -78,6 +83,35 @@ public class BudgetAlertService {
                 .findByUser_IdAndIsReadFalseOrderByCreatedAtDesc(userId);
         log.debug("Fetched {} unread alert(s) for userId={}", alerts.size(), userId);
         return alerts;
+    }
+
+    public List<BudgetAlert> getAlertsByType(UUID userId, AlertType type) {
+        List<BudgetAlert> alerts = alertRepository
+                .findByUser_IdAndAlertTypeOrderByCreatedAtDesc(userId, type);
+        log.debug("Fetched {} {} alert(s) for userId={}", alerts.size(), type, userId);
+        return alerts;
+    }
+
+    /**
+     * Creates an ANOMALY alert for a user. Unlike budget alerts, this is not tied
+     * to a budget (budget stays null) — it flags an unusual transaction.
+     *
+     * Called from {@code AiService.detectAnomaly} after Claude confirms the charge
+     * is genuinely unusual. getReferenceById gives us a lazy User proxy, which is
+     * all we need to set the foreign key without loading the full row.
+     */
+    @Transactional
+    public BudgetAlert createAnomalyAlert(UUID userId, String message) {
+        User user = userRepository.getReferenceById(userId);
+        BudgetAlert saved = alertRepository.save(BudgetAlert.builder()
+                .user(user)
+                .budget(null)
+                .message(message)
+                .alertType(AlertType.ANOMALY)
+                .isRead(false)
+                .build());
+        log.debug("Created ANOMALY alert id={} for userId={}", saved.getId(), userId);
+        return saved;
     }
 
     @Transactional

@@ -74,7 +74,7 @@ class TransactionControllerTest {
                 .description("Weekly shop")
                 .date(LocalDate.of(2026, 5, 30))
                 .build();
-        when(transactionService.create(any(), any(), any(), any(), any(), any(), any()))
+        when(transactionService.createTransaction(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(saved);
 
         String body = objectMapper.writeValueAsString(Map.of(

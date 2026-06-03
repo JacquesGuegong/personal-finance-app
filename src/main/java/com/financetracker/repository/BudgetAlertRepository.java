@@ -12,6 +12,10 @@ public interface BudgetAlertRepository extends JpaRepository<BudgetAlert, UUID> 
     // Returns unread alerts for a user, newest first — used by GET /api/alerts
     List<BudgetAlert> findByUser_IdAndIsReadFalseOrderByCreatedAtDesc(UUID userId);
 
+    // Returns all alerts of one type for a user, newest first
+    // — used by GET /api/alerts?type=ANOMALY
+    List<BudgetAlert> findByUser_IdAndAlertTypeOrderByCreatedAtDesc(UUID userId, AlertType alertType);
+
     // Prevents duplicate alerts: if an unread alert of this type already exists
     // for this budget, we skip creating another one
     boolean existsByBudget_IdAndAlertTypeAndIsReadFalse(UUID budgetId, AlertType alertType);

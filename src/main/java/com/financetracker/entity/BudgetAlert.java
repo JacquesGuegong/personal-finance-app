@@ -22,8 +22,11 @@ public class BudgetAlert {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "budget_id", nullable = false)
+    // Nullable: WARNING/EXCEEDED alerts belong to a specific budget, but an
+    // ANOMALY alert is about an unusual transaction in a category and may have no
+    // budget behind it (the user might never have set a budget for that category).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "budget_id")
     private Budget budget;
 
     @Column(nullable = false)

@@ -9,6 +9,7 @@ import com.financetracker.repository.AccountRepository;
 import com.financetracker.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -23,15 +24,18 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TransactionService(TransactionRepository transactionRepository,
-                               AccountRepository accountRepository) {
+                               AccountRepository accountRepository,
+                               ApplicationEventPublisher eventPublisher) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
-    public Transaction create(UUID userId, UUID accountId, BigDecimal amount,
+    public Transaction createTransaction(UUID userId, UUID accountId, BigDecimal amount,
                                TransactionType type, String category,
                                String description, LocalDate date) {
         log.debug("Creating {} transaction: amount={}, category='{}', accountId={}, userId={}",
@@ -49,6 +53,11 @@ public class TransactionService {
 
         log.info("Transaction created: id={}, type={}, amount={}, category='{}', userId={}",
                 saved.getId(), type, amount, category, userId);
+
+        // Announce the new transaction so the anomaly detector can react AFTER this
+        // transaction commits. We publish here (not call AiService directly) to avoid
+        // a circular dependency and to keep detection off the create() critical path.
+        eventPublisher.publishEvent(new TransactionCreatedEvent(userId, saved));
         return saved;
     }
 

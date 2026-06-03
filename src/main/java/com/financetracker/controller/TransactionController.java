@@ -52,7 +52,7 @@ public class TransactionController {
     @PostMapping
     public ResponseEntity<TransactionResponse> create(@Valid @RequestBody TransactionRequest request,
                                                        Principal principal) {
-        Transaction transaction = transactionService.create(
+        Transaction transaction = transactionService.createTransaction(
                 userId(principal), request.accountId(), request.amount(),
                 request.type(), request.category(), request.description(), request.date());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(transaction));
