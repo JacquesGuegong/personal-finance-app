@@ -35,6 +35,9 @@ Thumbs.db
 
 # ── Archives ──────────────────────────────────────────────────────────────────
 *.jar
+# Exception: the Gradle wrapper jar MUST be committed so ./gradlew works on a
+# fresh checkout (e.g. CI), where it can't be downloaded ahead of time.
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.zip
 *.tar.gz
