@@ -37,12 +37,12 @@ jobs:
     steps:
       # Pull the repository's code onto the runner.
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Install a JDK. "cache: gradle" saves downloaded dependencies between
       # runs so later builds are much faster.
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -63,7 +63,7 @@ jobs:
       # to read the report). Without it, a failed test step would skip this.
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |
@@ -87,10 +87,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -114,7 +114,7 @@ jobs:
       # Authenticate to GitHub Container Registry. GITHUB_TOKEN is created
       # automatically for each run — no secret to manage.
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -123,7 +123,7 @@ jobs:
       # Build the image from the Dockerfile and push it, tagged with the exact
       # commit SHA so every image is traceable back to one commit.
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -142,7 +142,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # docker-compose.yml reads its ${VARS} from a .env file. We build that
       # file from GitHub Secrets at runtime. Secrets are masked in logs, so the
