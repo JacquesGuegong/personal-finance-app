@@ -2,7 +2,6 @@ package com.financetracker.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -32,6 +31,6 @@ public class Account {
     @Column(nullable = false)
     private AccountType type;
 
-    @Column(nullable = false, precision = 19, scale = 4)
-    private BigDecimal balance;
+    // No balance column: an account's balance is computed on demand from its
+    // transactions (sum of INCOME minus EXPENSE). See AccountService.
 }

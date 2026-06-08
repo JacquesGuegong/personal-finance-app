@@ -38,4 +38,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
                                      @Param("type") TransactionType type,
                                      @Param("year") int year,
                                      @Param("month") int month);
+
+    // Computes one account's balance: every INCOME adds, every EXPENSE subtracts.
+    // COALESCE returns 0 (not NULL) for an account with no transactions yet.
+    @Query("""
+            SELECT COALESCE(SUM(CASE WHEN t.type = com.financetracker.entity.TransactionType.INCOME
+                                     THEN t.amount ELSE t.amount * -1 END), 0)
+            FROM Transaction t
+            WHERE t.account.id = :accountId
+            """)
+    BigDecimal calculateBalance(@Param("accountId") UUID accountId);
+
+    // Net worth = the same income-minus-expense sum across ALL of a user's accounts.
+    @Query("""
+            SELECT COALESCE(SUM(CASE WHEN t.type = com.financetracker.entity.TransactionType.INCOME
+                                     THEN t.amount ELSE t.amount * -1 END), 0)
+            FROM Transaction t
+            WHERE t.account.user.id = :userId
+            """)
+    BigDecimal sumNetWorthByUserId(@Param("userId") UUID userId);
 }

@@ -4,6 +4,7 @@ import com.financetracker.dto.AccountRequest;
 import com.financetracker.dto.AccountResponse;
 import com.financetracker.entity.Account;
 import com.financetracker.service.AccountService;
+import com.financetracker.service.AccountWithBalance;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,13 +34,13 @@ public class AccountController {
     @PostMapping
     public ResponseEntity<AccountResponse> create(@Valid @RequestBody AccountRequest request,
                                                    Principal principal) {
-        Account account = accountService.create(userId(principal), request.name(), request.type());
+        AccountWithBalance account = accountService.create(userId(principal), request.name(), request.type());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(account));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<AccountResponse> getById(@PathVariable UUID id, Principal principal) {
-        return ResponseEntity.ok(toResponse(accountService.findById(id, userId(principal))));
+        return ResponseEntity.ok(toResponse(accountService.getWithBalance(id, userId(principal))));
     }
 
     // PUT replaces the full resource — both name and type are required
@@ -47,7 +48,7 @@ public class AccountController {
     public ResponseEntity<AccountResponse> update(@PathVariable UUID id,
                                                    @Valid @RequestBody AccountRequest request,
                                                    Principal principal) {
-        Account account = accountService.update(id, userId(principal), request.name(), request.type());
+        AccountWithBalance account = accountService.update(id, userId(principal), request.name(), request.type());
         return ResponseEntity.ok(toResponse(account));
     }
 
@@ -64,7 +65,8 @@ public class AccountController {
         return UUID.fromString(principal.getName());
     }
 
-    private AccountResponse toResponse(Account a) {
-        return new AccountResponse(a.getId(), a.getName(), a.getType(), a.getBalance());
+    private AccountResponse toResponse(AccountWithBalance awb) {
+        Account a = awb.account();
+        return new AccountResponse(a.getId(), a.getName(), a.getType(), awb.balance());
     }
 }

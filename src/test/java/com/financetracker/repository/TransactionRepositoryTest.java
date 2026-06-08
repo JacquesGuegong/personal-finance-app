@@ -47,7 +47,6 @@ class TransactionRepositoryTest {
                 .user(user)
                 .name("Checking")
                 .type(AccountType.CHECKING)
-                .balance(BigDecimal.ZERO)
                 .build());
 
         persistTransaction(account, LocalDate.of(2026, 5, 1));   // inside range
@@ -76,9 +75,9 @@ class TransactionRepositoryTest {
         User bob   = em.persist(User.builder().email("bob@x.com").passwordHash("h").build());
 
         Account aliceAccount = em.persist(Account.builder()
-                .user(alice).name("A").type(AccountType.CHECKING).balance(BigDecimal.ZERO).build());
+                .user(alice).name("A").type(AccountType.CHECKING).build());
         Account bobAccount = em.persist(Account.builder()
-                .user(bob).name("B").type(AccountType.CHECKING).balance(BigDecimal.ZERO).build());
+                .user(bob).name("B").type(AccountType.CHECKING).build());
 
         persistTransaction(aliceAccount, LocalDate.of(2026, 5, 10));
         persistTransaction(bobAccount,   LocalDate.of(2026, 5, 10));
