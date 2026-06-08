@@ -94,6 +94,19 @@ public class BudgetAlertService {
         return alerts;
     }
 
+    public List<BudgetAlert> getAllAlerts(UUID userId) {
+        List<BudgetAlert> alerts = alertRepository.findByUser_IdOrderByCreatedAtDesc(userId);
+        log.debug("Fetched {} total alert(s) for userId={}", alerts.size(), userId);
+        return alerts;
+    }
+
+    @Transactional
+    public int markAllAsRead(UUID userId) {
+        int cleared = alertRepository.markAllReadByUserId(userId);
+        log.info("Marked {} alert(s) as read for userId={}", cleared, userId);
+        return cleared;
+    }
+
     public long getUnreadCount(UUID userId) {
         long count = alertRepository.countByUser_IdAndIsReadFalse(userId);
         log.debug("User userId={} has {} unread alert(s)", userId, count);

@@ -38,6 +38,14 @@ public class AlertController {
         return ResponseEntity.ok(alerts.stream().map(this::toResponse).toList());
     }
 
+    // GET /api/alerts/all → every alert (read + unread, all types), newest first.
+    // The plain GET /api/alerts only returns UNREAD, so this backs the "ALL" tab.
+    @GetMapping("/all")
+    public ResponseEntity<List<AlertResponse>> getAllAlerts(Principal principal) {
+        List<BudgetAlert> alerts = budgetAlertService.getAllAlerts(userId(principal));
+        return ResponseEntity.ok(alerts.stream().map(this::toResponse).toList());
+    }
+
     // GET /api/alerts/count → number of unread alerts, for the UI badge.
     // A dedicated count endpoint is far cheaper than fetching the full list
     // just to call .length on the client.
@@ -45,6 +53,15 @@ public class AlertController {
     public ResponseEntity<AlertCountResponse> getUnreadCount(Principal principal) {
         long count = budgetAlertService.getUnreadCount(userId(principal));
         return ResponseEntity.ok(new AlertCountResponse(count));
+    }
+
+    // PUT /api/alerts/read-all → marks all of the user's unread alerts as read.
+    // Returns { "count": N } where N is how many were cleared, so the client can
+    // refresh the badge without a second round-trip.
+    @PutMapping("/read-all")
+    public ResponseEntity<AlertCountResponse> markAllAsRead(Principal principal) {
+        int cleared = budgetAlertService.markAllAsRead(userId(principal));
+        return ResponseEntity.ok(new AlertCountResponse(cleared));
     }
 
     // PUT not POST — we are updating the state of an existing resource, not creating one
