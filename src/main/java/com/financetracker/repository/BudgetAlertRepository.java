@@ -1,4 +1,4 @@
-copackage com.financetracker.repository;
+package com.financetracker.repository;
 
 import com.financetracker.entity.AlertType;
 import com.financetracker.entity.BudgetAlert;
