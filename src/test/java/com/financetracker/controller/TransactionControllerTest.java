@@ -14,13 +14,23 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -110,6 +120,52 @@ class TransactionControllerTest {
                 // formLogin/httpBasic configured, the default entry point returns 403.
                 // (A REST API often prefers 401; see the note in the chat.)
                 .andExpect(status().isForbidden());
+    }
+
+    // ── GET: paginated list returns the PageResponse envelope ─────────────────────
+    @Test
+    @WithMockUser(username = USER_ID)
+    void getTransactions_returnsPageEnvelope() throws Exception {
+        Account account = Account.builder().id(UUID.randomUUID()).build();
+        Transaction t = Transaction.builder()
+                .id(UUID.randomUUID())
+                .account(account)
+                .amount(new BigDecimal("12.00"))
+                .type(TransactionType.EXPENSE)
+                .category("Groceries")
+                .date(LocalDate.of(2026, 6, 1))
+                .build();
+
+        // 1 row on a page of 20, 45 matches in total → 3 pages, hasNext = true.
+        // any(Pageable.class) also disambiguates: it selects the 4-arg paginated
+        // overload of getByDateRange, not the 3-arg List one.
+        when(transactionService.getByDateRange(any(), any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(t), PageRequest.of(0, 20), 45));
+
+        mockMvc.perform(get("/api/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].category").value("Groceries"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(45))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    // ── GET: an absurd ?size= is clamped to the 100 cap, not honored ──────────────
+    @Test
+    @WithMockUser(username = USER_ID)
+    void getTransactions_oversizedPage_isClampedTo100() throws Exception {
+        when(transactionService.getByDateRange(any(), any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 100), 0));
+
+        mockMvc.perform(get("/api/transactions").param("size", "5000"))
+                .andExpect(status().isOk());
+
+        // Capture the Pageable the controller actually built and assert the clamp.
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(transactionService).getByDateRange(any(), any(), any(), pageable.capture());
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(100);
     }
 
     // ── 3. Authenticated but invalid body (missing required fields) → 400 ─────────

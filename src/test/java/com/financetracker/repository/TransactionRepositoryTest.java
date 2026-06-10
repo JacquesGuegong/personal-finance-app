@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -91,6 +94,47 @@ class TransactionRepositoryTest {
                 alice.getId(), LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31));
 
         assertThat(results).hasSize(1);
+    }
+
+    @Test
+    void findByDateRange_paginated_returnsNewestFirstAndCorrectPageMath() {
+        User user = em.persist(User.builder()
+                .email("carol@example.com")
+                .passwordHash("hash")
+                .build());
+        Account account = em.persist(Account.builder()
+                .user(user).name("Checking").type(AccountType.CHECKING).build());
+
+        persistTransaction(account, LocalDate.of(2026, 5, 1));
+        persistTransaction(account, LocalDate.of(2026, 5, 10));
+        persistTransaction(account, LocalDate.of(2026, 5, 20));
+        em.flush();
+        em.clear();
+
+        // Same sort the controller builds: date DESC with the unique id as a
+        // tie-breaker, so rows can never straddle or skip a page boundary.
+        Sort sort = Sort.by(Sort.Direction.DESC, "date").and(Sort.by("id"));
+
+        Page<Transaction> firstPage = transactionRepository.findByAccount_User_IdAndDateBetween(
+                user.getId(), LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
+                PageRequest.of(0, 2, sort));
+
+        // 3 matches at 2 per page → page 0 has 2 rows (newest first), page 1 has 1.
+        assertThat(firstPage.getTotalElements()).isEqualTo(3);
+        assertThat(firstPage.getTotalPages()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.getContent())
+                .extracting(Transaction::getDate)
+                .containsExactly(LocalDate.of(2026, 5, 20), LocalDate.of(2026, 5, 10));
+
+        Page<Transaction> secondPage = transactionRepository.findByAccount_User_IdAndDateBetween(
+                user.getId(), LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
+                PageRequest.of(1, 2, sort));
+
+        assertThat(secondPage.getContent())
+                .extracting(Transaction::getDate)
+                .containsExactly(LocalDate.of(2026, 5, 1));
+        assertThat(secondPage.hasNext()).isFalse();
     }
 
     // ── helper ────────────────────────────────────────────────────────────────────

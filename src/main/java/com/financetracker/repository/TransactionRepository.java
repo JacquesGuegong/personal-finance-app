@@ -2,6 +2,8 @@ package com.financetracker.repository;
 
 import com.financetracker.entity.Transaction;
 import com.financetracker.entity.TransactionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +23,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             UUID userId, LocalDate start, LocalDate end);
 
     List<Transaction> findByAccount_User_IdAndCategory(UUID userId, String category);
+
+    // Paginated variants of the two queries above. Adding a Pageable parameter and
+    // returning Page<T> makes Spring Data run TWO queries: the page itself
+    // (... ORDER BY <sort> LIMIT <size> OFFSET <page*size>) plus a COUNT(*) for
+    // totalElements/totalPages. The List versions stay because internal callers
+    // (e.g. AiService aggregating a category's history) need the full result set.
+    Page<Transaction> findByAccount_User_IdAndDateBetween(
+            UUID userId, LocalDate start, LocalDate end, Pageable pageable);
+
+    Page<Transaction> findByAccount_User_IdAndCategory(UUID userId, String category, Pageable pageable);
 
     Optional<Transaction> findByIdAndAccount_User_Id(UUID transactionId, UUID userId);
 

@@ -10,6 +10,8 @@ import com.financetracker.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -71,6 +73,26 @@ public class TransactionService {
         List<Transaction> results = transactionRepository.findByAccount_User_IdAndCategory(userId, category);
         log.debug("Fetched {} transactions for userId={} in category='{}'", results.size(), userId, category);
         return results;
+    }
+
+    // Paginated variants for the API. The List versions above remain for internal
+    // callers that aggregate over the full result set (e.g. AiService).
+    public Page<Transaction> getByDateRange(UUID userId, LocalDate start, LocalDate end, Pageable pageable) {
+        Page<Transaction> page = transactionRepository
+                .findByAccount_User_IdAndDateBetween(userId, start, end, pageable);
+        log.debug("Fetched page {}/{} ({} of {} transactions) for userId={} between {} and {}",
+                page.getNumber() + 1, page.getTotalPages(), page.getNumberOfElements(),
+                page.getTotalElements(), userId, start, end);
+        return page;
+    }
+
+    public Page<Transaction> getByCategory(UUID userId, String category, Pageable pageable) {
+        Page<Transaction> page = transactionRepository
+                .findByAccount_User_IdAndCategory(userId, category, pageable);
+        log.debug("Fetched page {}/{} ({} of {} transactions) for userId={} in category='{}'",
+                page.getNumber() + 1, page.getTotalPages(), page.getNumberOfElements(),
+                page.getTotalElements(), userId, category);
+        return page;
     }
 
     public Transaction findById(UUID transactionId, UUID userId) {
