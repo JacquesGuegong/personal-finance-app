@@ -1,6 +1,9 @@
 package com.financetracker.service;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.financetracker.ai.AnthropicClient;
+import com.financetracker.dto.ReceiptScanResponse;
 import com.financetracker.entity.Budget;
 import com.financetracker.entity.Transaction;
 import com.financetracker.entity.TransactionType;
@@ -15,6 +18,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -282,6 +287,118 @@ public class AiService {
                 userPrompt);
 
         return answer != null && answer.trim().toUpperCase().startsWith("ANOMALY");
+    }
+
+    // ── Feature 5: receipt scanning (image → draft transaction) ───────────────────
+
+    // Jackson mapper for parsing Claude's JSON reply. A plain private instance (not
+    // injected) because this is internal parsing, not part of Spring's HTTP layer.
+    private final ObjectMapper receiptJson = new ObjectMapper();
+
+    /**
+     * What we ask Claude to fill in, mirroring the JSON object the prompt demands.
+     * Package-private record used ONLY as a parsing target — the API returns the
+     * cleaned-up {@link ReceiptScanResponse}, never this raw form.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ExtractedReceipt(String merchant, BigDecimal amount, String date,
+                            String category, String description) {}
+
+    /**
+     * Extracts a draft transaction from a receipt photo.
+     *
+     * Privacy note: unlike the other features, here we DO send user content (the
+     * image) to Claude — but only because the user explicitly chose to scan this
+     * receipt. That's informed consent, not leakage: the feature IS "send my
+     * receipt to the AI".
+     *
+     * Failure contract (different from the other features — there is no useful
+     * fallback text for "give me my data back"):
+     *   - Claude unreachable/unusable  → AiServiceException     → HTTP 503
+     *   - image readable but no total  → IllegalArgumentException → HTTP 400
+     *
+     * @param imageBytes raw bytes of the uploaded photo
+     * @param mediaType  its MIME type (image/jpeg, image/png, ...) — validated
+     *                   by the controller before we get here
+     */
+    public ReceiptScanResponse scanReceipt(byte[] imageBytes, String mediaType) {
+        // The Messages API takes images as Base64 text inside the JSON body.
+        String base64 = Base64.getEncoder().encodeToString(imageBytes);
+        log.debug("Scanning receipt: {} bytes, mediaType={}", imageBytes.length, mediaType);
+
+        String userPrompt = """
+                Extract the purchase data from this receipt image. Reply with ONLY this
+                JSON object — no markdown fences, no commentary:
+                {
+                  "merchant": <store name as a string, or null>,
+                  "amount": <the FINAL total paid, after tax and tip, as a number, or null>,
+                  "date": <purchase date as "YYYY-MM-DD", or null>,
+                  "category": <exactly one of: Groceries, Dining, Entertainment, Transport,
+                               Utilities, Housing, Shopping, Health, Other>,
+                  "description": <short summary like "Walmart — groceries", or null>
+                }
+                If the image is not a receipt or is unreadable, use null for every
+                field except "category", which should be "Other".
+                """;
+
+        String reply = anthropicClient.completeWithImage(
+                "You are a precise receipt-data extraction assistant. You always reply "
+                        + "with a single valid JSON object and nothing else.",
+                userPrompt, mediaType, base64);
+
+        ExtractedReceipt extracted = parseReceiptJson(reply);
+
+        // Amount is the one field a transaction can't exist without. If Claude
+        // couldn't find one, the image probably isn't a (readable) receipt —
+        // that's the CLIENT's problem (bad input), hence IllegalArgumentException.
+        if (extracted.amount() == null || extracted.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            log.info("Receipt scan found no usable total (mediaType={})", mediaType);
+            throw new IllegalArgumentException(
+                    "Could not read a total amount from this image. Please upload a clear photo of a receipt.");
+        }
+
+        // Every other field degrades gracefully instead of failing the whole scan.
+        LocalDate date = parseDateOrToday(extracted.date());
+        String category = (extracted.category() == null || extracted.category().isBlank())
+                ? "Other" : extracted.category().trim();
+
+        log.info("Receipt scanned: merchant='{}', amount={}, date={}, category='{}'",
+                extracted.merchant(), extracted.amount(), date, category);
+
+        return new ReceiptScanResponse(
+                extracted.merchant(), extracted.amount(), date, category, extracted.description());
+    }
+
+    /**
+     * Parses Claude's reply into {@link ExtractedReceipt}. Defends against the
+     * model wrapping the JSON in markdown fences despite instructions. A reply we
+     * still can't parse means the AI misbehaved — that's a SERVER-side problem
+     * (503 via AiServiceException), not the client's fault.
+     */
+    private ExtractedReceipt parseReceiptJson(String reply) {
+        String json = reply.trim();
+        if (json.startsWith("```")) {
+            json = json.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "");
+        }
+        try {
+            return receiptJson.readValue(json, ExtractedReceipt.class);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.warn("Receipt scan: Claude reply was not valid JSON: {}", e.getMessage());
+            throw new AiServiceException("Receipt extraction returned unparseable data", e);
+        }
+    }
+
+    /** Receipt dates come in messy; an unparseable one falls back to today. */
+    private LocalDate parseDateOrToday(String date) {
+        if (date == null || date.isBlank()) {
+            return LocalDate.now();
+        }
+        try {
+            return LocalDate.parse(date.trim());   // expects ISO format: 2026-06-11
+        } catch (DateTimeParseException e) {
+            log.debug("Receipt scan: unparseable date '{}', defaulting to today", date);
+            return LocalDate.now();
+        }
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────

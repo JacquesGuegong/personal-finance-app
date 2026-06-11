@@ -12,6 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.financetracker.dto.ReceiptScanResponse;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -21,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -229,6 +232,63 @@ class AiServiceTest {
         verify(transactionService, never()).getByCategory(any(), anyString());
         verify(anthropicClient, never()).complete(anyString(), anyString());
         verify(budgetAlertService, never()).createAnomalyAlert(any(), anyString());
+    }
+
+    // ── receipt scanning ───────────────────────────────────────────────────────────
+
+    private static final byte[] FAKE_IMAGE = {1, 2, 3};
+
+    @Test
+    void scanReceipt_validJsonReply_returnsDraftTransaction() {
+        when(anthropicClient.completeWithImage(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn("""
+                        {"merchant":"Walmart","amount":54.20,"date":"2026-06-10",
+                         "category":"Groceries","description":"Walmart — groceries"}
+                        """);
+
+        ReceiptScanResponse draft = aiService.scanReceipt(FAKE_IMAGE, "image/jpeg");
+
+        assertThat(draft.merchant()).isEqualTo("Walmart");
+        assertThat(draft.amount()).isEqualByComparingTo("54.20");
+        assertThat(draft.date()).isEqualTo(LocalDate.of(2026, 6, 10));
+        assertThat(draft.category()).isEqualTo("Groceries");
+    }
+
+    @Test
+    void scanReceipt_replyWrappedInMarkdownFences_stillParses() {
+        // Models sometimes add ```json fences despite instructions — we strip them.
+        when(anthropicClient.completeWithImage(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn("""
+                        ```json
+                        {"merchant":"Shell","amount":40.00,"date":"not-a-date","category":"Transport","description":null}
+                        ```
+                        """);
+
+        ReceiptScanResponse draft = aiService.scanReceipt(FAKE_IMAGE, "image/png");
+
+        assertThat(draft.merchant()).isEqualTo("Shell");
+        // The unparseable date degrades gracefully to today instead of failing the scan.
+        assertThat(draft.date()).isEqualTo(LocalDate.now());
+    }
+
+    @Test
+    void scanReceipt_noAmountFound_throwsBadInput() {
+        // All-null reply is the prompt's "this isn't a readable receipt" signal.
+        when(anthropicClient.completeWithImage(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn("{\"merchant\":null,\"amount\":null,\"date\":null,\"category\":\"Other\",\"description\":null}");
+
+        assertThatThrownBy(() -> aiService.scanReceipt(FAKE_IMAGE, "image/jpeg"))
+                .isInstanceOf(IllegalArgumentException.class)   // → 400 to the client
+                .hasMessageContaining("Could not read a total amount");
+    }
+
+    @Test
+    void scanReceipt_unparseableReply_throwsAiServiceException() {
+        when(anthropicClient.completeWithImage(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn("Sorry, I can't read this image.");   // not JSON at all
+
+        assertThatThrownBy(() -> aiService.scanReceipt(FAKE_IMAGE, "image/jpeg"))
+                .isInstanceOf(AiServiceException.class);          // → 503 to the client
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────

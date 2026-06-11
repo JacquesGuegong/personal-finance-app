@@ -11,6 +11,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.stream.Collectors;
 
@@ -70,6 +71,36 @@ public class GlobalExceptionHandler {
         log.warn("Conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(409, ex.getMessage()));
+    }
+
+    // The client sent something we can't work with (bad file type, unreadable
+    // receipt, ...). The exception message is written for the client, so unlike
+    // the 500 catch-all it is safe to return.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleBadInput(IllegalArgumentException ex) {
+        log.warn("Bad request: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(400, ex.getMessage()));
+    }
+
+    // Upload blew past the multipart limit in application.properties. This fires
+    // BEFORE the controller runs, so the controller's own size check never sees
+    // it — without this handler it would surface as a confusing 500.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        log.warn("Upload rejected: exceeds the multipart size limit");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ErrorResponse.of(413, "Uploaded file is too large. Maximum size is 5 MB."));
+    }
+
+    // A required AI feature couldn't deliver (Claude down, unparseable reply).
+    // 503 Service Unavailable = "not your fault, try again later" — distinct from
+    // 400 (your input was bad) and 500 (we have a bug).
+    @ExceptionHandler(AiServiceException.class)
+    public ResponseEntity<ErrorResponse> handleAiUnavailable(AiServiceException ex) {
+        log.warn("AI service unavailable: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(503, "The AI service is temporarily unavailable. Please try again."));
     }
 
     // Catch-all: log the full stack trace server-side so engineers can investigate,

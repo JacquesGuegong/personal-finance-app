@@ -1,6 +1,7 @@
 package com.financetracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.financetracker.dto.ReceiptScanResponse;
 import com.financetracker.service.AiService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,15 +9,19 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,5 +90,48 @@ class AiControllerTest {
         mockMvc.perform(get("/api/ai/budget-advice"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.advice").value("You could save $200/month by reducing dining out."));
+    }
+
+    // ── receipt scanning ───────────────────────────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = USER_ID)
+    void scanReceipt_validJpegUpload_returnsDraft() throws Exception {
+        when(aiService.scanReceipt(any(), anyString())).thenReturn(new ReceiptScanResponse(
+                "Walmart", new BigDecimal("54.20"), LocalDate.of(2026, 6, 10),
+                "Groceries", "Walmart — groceries"));
+
+        // MockMultipartFile simulates a browser file upload:
+        // (form field name, original filename, content type, bytes)
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/ai/scan-receipt").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.merchant").value("Walmart"))
+                .andExpect(jsonPath("$.amount").value(54.20))
+                .andExpect(jsonPath("$.date").value("2026-06-10"))
+                .andExpect(jsonPath("$.category").value("Groceries"));
+    }
+
+    @Test
+    @WithMockUser(username = USER_ID)
+    void scanReceipt_unsupportedFileType_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "notes.txt", MediaType.TEXT_PLAIN_VALUE, "hello".getBytes());
+
+        mockMvc.perform(multipart("/api/ai/scan-receipt").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("Unsupported image type")));
+    }
+
+    @Test
+    void scanReceipt_noAuth_isRejected() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{1});
+
+        mockMvc.perform(multipart("/api/ai/scan-receipt").file(file))
+                .andExpect(status().isForbidden());
     }
 }

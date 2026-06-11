@@ -65,6 +65,27 @@ public class AnthropicClient {
      *                            returns a non-2xx status, or the body is empty.
      */
     public String complete(String systemPrompt, String userPrompt) {
+        return send(systemPrompt, AnthropicMessageRequest.Message.user(userPrompt));
+    }
+
+    /**
+     * Sends an image (as base64) plus a text prompt to Claude — used for
+     * receipt scanning. Same error contract as {@link #complete}.
+     *
+     * @param mediaType  the image's MIME type, e.g. "image/jpeg" — Claude needs
+     *                   it to decode the base64 payload correctly
+     * @param base64Data the raw image bytes, Base64-encoded
+     */
+    public String completeWithImage(String systemPrompt, String userPrompt,
+                                    String mediaType, String base64Data) {
+        return send(systemPrompt,
+                AnthropicMessageRequest.Message.userWithImage(mediaType, base64Data, userPrompt));
+    }
+
+    // The single private path every public method funnels through: builds headers,
+    // posts the request, extracts the text, translates failures. Adding a new kind
+    // of call (like images) never duplicates this plumbing.
+    private String send(String systemPrompt, AnthropicMessageRequest.Message message) {
         // Fail fast (and clearly) if the key was never configured. We check
         // isBlank() rather than just null because the default in application.properties
         // is an empty string.
@@ -81,7 +102,7 @@ public class AnthropicClient {
                 model,
                 maxTokens,
                 systemPrompt,
-                List.of(AnthropicMessageRequest.Message.user(userPrompt)));
+                List.of(message));
 
         try {
             // postForObject sends the body as JSON and deserializes the JSON reply
