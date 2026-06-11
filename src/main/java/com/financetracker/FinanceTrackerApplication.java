@@ -2,6 +2,7 @@ package com.financetracker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -24,6 +25,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableScheduling
+// Lets Spring honor @Async: annotated methods run on a background thread pool
+// instead of the caller's thread. Without this, @Async is silently ignored.
+@EnableAsync
 public class FinanceTrackerApplication {
 
     public static void main(String[] args) {

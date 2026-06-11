@@ -11,6 +11,7 @@ import com.financetracker.repository.TransactionRepository;
 import com.financetracker.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,6 +81,12 @@ public class BudgetAlertService {
     // so the alert writes need their own fresh transaction. Annotating the listener
     // (which Spring invokes through the proxy) is what makes @Transactional apply —
     // an internal call to checkBudgetAlertsForUser would bypass the proxy.
+    //
+    // @Async: AFTER_COMMIT only delays WHEN this runs, not WHERE — without @Async it
+    // would still run on the HTTP request thread and delay the user's response.
+    // With it, Spring hands this method to a background thread pool; the new
+    // transaction (REQUIRES_NEW) then starts on that background thread.
+    @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onTransactionCreated(TransactionCreatedEvent event) {

@@ -7,6 +7,7 @@ import com.financetracker.entity.TransactionType;
 import com.financetracker.exception.AiServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -158,9 +159,15 @@ public class AiService {
     /**
      * React to a newly-created transaction. This runs AFTER the DB transaction that
      * created it has COMMITTED ({@code TransactionPhase.AFTER_COMMIT}), so anomaly
-     * detection can never roll back or block transaction creation — by the time we
-     * run, the transaction is already safely persisted.
+     * detection can never roll back the user's data — by the time we run, the
+     * transaction is already safely persisted.
+     *
+     * AFTER_COMMIT alone is NOT asynchronous: it still runs on the HTTP request
+     * thread, so a slow Claude call would delay the user's 201 response. @Async
+     * moves this onto a background thread pool, so the response returns immediately
+     * and anomaly detection happens in parallel.
      */
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onTransactionCreated(TransactionCreatedEvent event) {
         detectAnomaly(event.userId(), event.transaction());
